@@ -31,13 +31,6 @@ jobs:
       - name: Expo prebuild
         run: npx expo prebuild --platform android --clean
 
-      - name: Disable New Architecture and ProGuard
-        run: |
-          sed -i 's/^newArchEnabled=true$/newArchEnabled=false/' android/gradle.properties
-          sed -i 's/shrinkResources enableShrinkResources.toBoolean()/shrinkResources false/' android/app/build.gradle
-          sed -i 's/minifyEnabled enableMinifyInReleaseBuilds/minifyEnabled false/' android/app/build.gradle
-          grep -E 'newArchEnabled|minifyEnabled|shrinkResources' android/gradle.properties android/app/build.gradle
-
       - name: Build APK
         working-directory: android
         run: ./gradlew assembleRelease
