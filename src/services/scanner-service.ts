@@ -29,7 +29,7 @@ function generateId(track: Omit<AudioTrack, 'id'>): string {
 async function scanMediaStore(): Promise<AudioTrack[]> {
   try {
     const { status } = await MediaLibrary.requestPermissionsAsync();
-    if (!status) return [];
+    if (status !== 'granted') return [];
 
     const tracks: AudioTrack[] = [];
     let hasNextPage = true;
@@ -99,16 +99,16 @@ async function scanDirectory(dir: Directory | string): Promise<AudioTrack[]> {
               uri: item.uri,
               filename: item.name,
               duration: 0,
-              size: 0,
-              lastModified: 0,
+              size: fileInfo.exists ? fileInfo.size ?? 0 : 0,
+              lastModified: fileInfo.exists ? fileInfo.modificationTime ?? 0 : 0,
               source: 'filesystem',
             }),
             uri: item.uri,
             filename: item.name,
             title: item.name.replace(/\.[^.]+$/, ''),
             duration: 0,
-            size: 0,
-            lastModified: 0,
+            size: fileInfo.exists ? fileInfo.size ?? 0 : 0,
+            lastModified: fileInfo.exists ? fileInfo.modificationTime ?? 0 : 0,
             source: 'filesystem',
           });
         }
@@ -118,21 +118,22 @@ async function scanDirectory(dir: Directory | string): Promise<AudioTrack[]> {
           const subItems = item.list();
           for (const subItem of subItems) {
             if (subItem instanceof File && isAudioFile(subItem.name)) {
+              const subInfo = Paths.info(subItem.uri);
               tracks.push({
                 id: generateId({
                   uri: subItem.uri,
                   filename: subItem.name,
                   duration: 0,
-                  size: 0,
-                  lastModified: 0,
+                  size: subInfo.exists ? subInfo.size ?? 0 : 0,
+                  lastModified: subInfo.exists ? subInfo.modificationTime ?? 0 : 0,
                   source: 'filesystem',
                 }),
                 uri: subItem.uri,
                 filename: subItem.name,
                 title: subItem.name.replace(/\.[^.]+$/, ''),
                 duration: 0,
-                size: 0,
-                lastModified: 0,
+                size: subInfo.exists ? subInfo.size ?? 0 : 0,
+                lastModified: subInfo.exists ? subInfo.modificationTime ?? 0 : 0,
                 source: 'filesystem',
               });
             }
@@ -144,7 +145,8 @@ async function scanDirectory(dir: Directory | string): Promise<AudioTrack[]> {
     }
 
     return tracks;
-  } catch {
+  } catch (err) {
+    console.warn('Directory scan failed:', err);
     return [];
   }
 }
