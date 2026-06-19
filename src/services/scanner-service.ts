@@ -1,11 +1,9 @@
-import * as MediaLibrary from 'expo-media-library';
+import MediaLibrary, { AssetField, MediaType, Query } from 'expo-media-library';
 import { Paths } from 'expo-file-system';
 import { Directory, File } from 'expo-file-system';
 import { AudioTrack } from '../types/audio';
 
 const SCAN_DIRS = [
-  Paths.document,
-  // External storage paths (Android)
   '/storage/emulated/0/Music',
   '/storage/emulated/0/Download',
   '/storage/emulated/0/Audio',
@@ -31,41 +29,37 @@ async function scanMediaStore(): Promise<AudioTrack[]> {
     const { status } = await MediaLibrary.requestPermissionsAsync();
     if (status !== 'granted') return [];
 
+    const assets = await new Query()
+      .eq(AssetField.MEDIA_TYPE, MediaType.AUDIO)
+      .limit(1000)
+      .exe();
+
     const tracks: AudioTrack[] = [];
-    let hasNextPage = true;
-    let after: string | undefined;
+    for (const asset of assets) {
+      const [filename, duration, uri, modificationTime] = await Promise.all([
+        asset.getFilename(),
+        asset.getDuration(),
+        asset.getUri(),
+        asset.getModificationTime(),
+      ]);
 
-    while (hasNextPage) {
-      const page = await MediaLibrary.getAssetsAsync({
-        mediaType: 'audio',
-        first: 100,
-        after,
-      });
-
-      for (const asset of page.assets) {
-        tracks.push({
-          id: generateId({
-            uri: asset.uri,
-            filename: asset.filename,
-            duration: asset.duration * 1000,
-            size: 0,
-            lastModified: asset.modificationTime,
-            source: 'media-store',
-          }),
-          uri: asset.uri,
-          filename: asset.filename,
-          title: asset.filename.replace(/\.[^.]+$/, ''),
-          artist: undefined,
-          album: asset.albumId ?? undefined,
-          duration: asset.duration * 1000,
+      tracks.push({
+        id: generateId({
+          uri,
+          filename,
+          duration: (duration ?? 0) * 1000,
           size: 0,
-          lastModified: asset.modificationTime,
+          lastModified: modificationTime ?? 0,
           source: 'media-store',
-        });
-      }
-
-      hasNextPage = page.hasNextPage;
-      after = page.endCursor;
+        }),
+        uri,
+        filename,
+        title: filename.replace(/\.[^.]+$/, ''),
+        duration: (duration ?? 0) * 1000,
+        size: 0,
+        lastModified: modificationTime ?? 0,
+        source: 'media-store',
+      });
     }
 
     return tracks;
@@ -93,22 +87,22 @@ async function scanDirectory(dir: Directory | string): Promise<AudioTrack[]> {
     for (const item of items) {
       if (item instanceof File) {
         if (isAudioFile(item.name)) {
-          const info = item.info();
+          const fileInfo = item.info();
           tracks.push({
             id: generateId({
               uri: item.uri,
               filename: item.name,
               duration: 0,
-              size: info.exists ? info.size ?? 0 : 0,
-              lastModified: info.exists ? info.modificationTime ?? 0 : 0,
+              size: fileInfo.exists ? fileInfo.size ?? 0 : 0,
+              lastModified: fileInfo.exists ? fileInfo.modificationTime ?? 0 : 0,
               source: 'filesystem',
             }),
             uri: item.uri,
             filename: item.name,
             title: item.name.replace(/\.[^.]+$/, ''),
             duration: 0,
-            size: info.exists ? info.size ?? 0 : 0,
-            lastModified: info.exists ? info.modificationTime ?? 0 : 0,
+            size: fileInfo.exists ? fileInfo.size ?? 0 : 0,
+            lastModified: fileInfo.exists ? fileInfo.modificationTime ?? 0 : 0,
             source: 'filesystem',
           });
         }
