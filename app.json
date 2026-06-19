@@ -43,6 +43,13 @@
         {
           "microphonePermission": false
         }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": false,
+          "saveToLibraryPermission": false
+        }
       ]
     ]
   }

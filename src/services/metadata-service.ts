@@ -1,4 +1,3 @@
-import * as MediaLibrary from 'expo-media-library';
 import { AudioTrack } from '../types/audio';
 
 /**
@@ -6,32 +5,8 @@ import { AudioTrack } from '../types/audio';
  * For filesystem-only tracks, we rely on filename heuristics.
  */
 export async function enrichMetadata(tracks: AudioTrack[]): Promise<AudioTrack[]> {
-  // Try to get album/artist info from media library for media-store tracks
-  const albumIds = new Set<string>();
-  for (const t of tracks) {
-    if (t.album) albumIds.add(t.album);
-  }
-
-  // Fetch album details
-  const albumMap = new Map<string, { title: string; artist?: string }>();
-  if (albumIds.size > 0) {
-    try {
-      const albums = await MediaLibrary.getAlbumsAsync();
-      for (const album of albums) {
-        albumMap.set(album.id, { title: album.title, artist: undefined });
-      }
-    } catch {
-      // albums not available
-    }
-  }
-
   return tracks.map((t) => {
     const enriched = { ...t };
-
-    // Apply album title from media library
-    if (t.album && albumMap.has(t.album)) {
-      enriched.album = albumMap.get(t.album)!.title;
-    }
 
     // For filesystem tracks without metadata, parse filename
     if (!enriched.artist && !enriched.album && enriched.source === 'filesystem') {
