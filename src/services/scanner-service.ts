@@ -93,22 +93,22 @@ async function scanDirectory(dir: Directory | string): Promise<AudioTrack[]> {
     for (const item of items) {
       if (item instanceof File) {
         if (isAudioFile(item.name)) {
-          const fileInfo = Paths.info(item.uri);
+          const info = item.info();
           tracks.push({
             id: generateId({
               uri: item.uri,
               filename: item.name,
               duration: 0,
-              size: fileInfo.exists ? fileInfo.size ?? 0 : 0,
-              lastModified: fileInfo.exists ? fileInfo.modificationTime ?? 0 : 0,
+              size: info.exists ? info.size ?? 0 : 0,
+              lastModified: info.exists ? info.modificationTime ?? 0 : 0,
               source: 'filesystem',
             }),
             uri: item.uri,
             filename: item.name,
             title: item.name.replace(/\.[^.]+$/, ''),
             duration: 0,
-            size: fileInfo.exists ? fileInfo.size ?? 0 : 0,
-            lastModified: fileInfo.exists ? fileInfo.modificationTime ?? 0 : 0,
+            size: info.exists ? info.size ?? 0 : 0,
+            lastModified: info.exists ? info.modificationTime ?? 0 : 0,
             source: 'filesystem',
           });
         }
@@ -118,7 +118,7 @@ async function scanDirectory(dir: Directory | string): Promise<AudioTrack[]> {
           const subItems = item.list();
           for (const subItem of subItems) {
             if (subItem instanceof File && isAudioFile(subItem.name)) {
-              const subInfo = Paths.info(subItem.uri);
+              const subInfo = subItem.info();
               tracks.push({
                 id: generateId({
                   uri: subItem.uri,

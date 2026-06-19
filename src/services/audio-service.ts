@@ -1,10 +1,11 @@
-import { Audio, AVPlaybackStatus } from 'expo-av';
+import { createAudioPlayer, AudioSource, useAudioPlayer } from 'expo-audio';
+import type { AudioPlayer, AudioStatus } from 'expo-audio';
 import { AudioTrack, PlaybackState, PlaybackRate } from '../types/audio';
 
 type StateListener = (state: PlaybackState) => void;
 
 class AudioService {
-  private sound: Audio.Sound | null = null;
+  private player: AudioPlayer | null = null;
   private listeners: Set<StateListener> = new Set();
   private state: PlaybackState = {
     currentTrack: null,
@@ -18,7 +19,7 @@ class AudioService {
   };
   private queue: AudioTrack[] = [];
   private queueIndex: number = -1;
-  private positionUpdateInterval: ReturnType<typeof setInterval> | null = null;
+  private pollInterval: ReturnType<typeof setInterval> | null = null;
 
   subscribe(listener: StateListener): () => void {
     this.listeners.add(listener);
@@ -38,86 +39,61 @@ class AudioService {
     this.emit();
   }
 
-  private startPositionUpdates() {
-    this.stopPositionUpdates();
-    this.positionUpdateInterval = setInterval(async () => {
-      if (!this.sound || !this.state.isPlaying) return;
-      try {
-        const status = await this.sound.getStatusAsync();
-        if (status.isLoaded) {
-          this.updateState({
-            position: status.positionMillis,
-            duration: status.durationMillis ?? this.state.duration,
-            isBuffering: status.isBuffering,
-          });
-        }
-      } catch {
-        // sound may have been unloaded
-      }
+  private startPolling() {
+    this.stopPolling();
+    this.pollInterval = setInterval(() => {
+      if (!this.player) return;
+      this.updateState({
+        position: this.player.currentTime * 1000,
+        duration: this.player.duration * 1000,
+        isBuffering: this.player.isBuffering,
+        isPlaying: this.player.playing,
+      });
     }, 250);
   }
 
-  private stopPositionUpdates() {
-    if (this.positionUpdateInterval) {
-      clearInterval(this.positionUpdateInterval);
-      this.positionUpdateInterval = null;
+  private stopPolling() {
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+      this.pollInterval = null;
     }
   }
 
-  private onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
-    if (!status.isLoaded) return;
-    if (status.didJustFinish) {
-      this.handleTrackEnd();
-      return;
-    }
-    this.updateState({
-      position: status.positionMillis,
-      duration: status.durationMillis ?? this.state.duration,
-      isPlaying: status.isPlaying,
-      isBuffering: status.isBuffering,
-    });
-  };
-
-  private async handleTrackEnd() {
-    // Try next in queue
-    if (this.queueIndex < this.queue.length - 1) {
-      await this.skipNext();
-    } else {
-      // Loop back to start of queue
-      this.updateState({ isPlaying: false, position: 0 });
-      this.stopPositionUpdates();
-    }
+  private buildSource(track: AudioTrack): AudioSource {
+    return { uri: track.uri };
   }
 
   async loadTrack(track: AudioTrack): Promise<void> {
     try {
       this.updateState({ error: null, isLoaded: false, isBuffering: true });
 
-      // Unload previous
-      if (this.sound) {
-        await this.sound.unloadAsync();
-        this.sound = null;
+      if (this.player) {
+        this.player.remove();
+        this.player = null;
       }
 
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: track.uri },
-        {
-          shouldPlay: false,
-          progressUpdateIntervalMillis: 500,
-          rate: this.state.rate,
-          shouldCorrectPitch: true,
-        },
-        this.onPlaybackStatusUpdate
-      );
+      this.player = createAudioPlayer(this.buildSource(track), { updateInterval: 250 });
 
-      this.sound = sound;
-      const status = await sound.getStatusAsync();
+      this.player.addListener('playbackStatusUpdate', (status: AudioStatus) => {
+        this.updateState({
+          position: status.currentTime * 1000,
+          duration: status.duration * 1000,
+          isPlaying: status.playing,
+          isBuffering: status.isBuffering,
+        });
+        if (status.didJustFinish) {
+          this.handleTrackEnd();
+        }
+      });
+
+      this.player.playbackRate = this.state.rate;
+      this.player.shouldCorrectPitch = true;
 
       this.updateState({
         currentTrack: track,
         isLoaded: true,
         isBuffering: false,
-        duration: status.isLoaded ? (status.durationMillis ?? 0) : 0,
+        duration: (this.player.duration ?? 0) * 1000,
         position: 0,
         isPlaying: false,
       });
@@ -131,22 +107,22 @@ class AudioService {
   }
 
   async play(): Promise<void> {
-    if (!this.sound || !this.state.isLoaded) return;
+    if (!this.player || !this.state.isLoaded) return;
     try {
-      await this.sound.playAsync();
+      this.player.play();
       this.updateState({ isPlaying: true });
-      this.startPositionUpdates();
+      this.startPolling();
     } catch (err: any) {
       this.updateState({ error: `Playback failed: ${err.message}` });
     }
   }
 
   async pause(): Promise<void> {
-    if (!this.sound) return;
+    if (!this.player) return;
     try {
-      await this.sound.pauseAsync();
+      this.player.pause();
       this.updateState({ isPlaying: false });
-      this.stopPositionUpdates();
+      this.stopPolling();
     } catch (err: any) {
       this.updateState({ error: `Pause failed: ${err.message}` });
     }
@@ -161,10 +137,10 @@ class AudioService {
   }
 
   async seekTo(positionMs: number): Promise<void> {
-    if (!this.sound || !this.state.isLoaded) return;
+    if (!this.player || !this.state.isLoaded) return;
     const clamped = Math.max(0, Math.min(positionMs, this.state.duration));
     try {
-      await this.sound.setPositionAsync(clamped);
+      await this.player.seekTo(clamped / 1000);
       this.updateState({ position: clamped });
     } catch (err: any) {
       this.updateState({ error: `Seek failed: ${err.message}` });
@@ -180,12 +156,12 @@ class AudioService {
   }
 
   async setRate(rate: PlaybackRate): Promise<void> {
-    if (!this.sound) {
+    if (!this.player) {
       this.updateState({ rate });
       return;
     }
     try {
-      await this.sound.setRateAsync(rate, true);
+      this.player.playbackRate = rate;
       this.updateState({ rate });
     } catch (err: any) {
       this.updateState({ error: `Rate change failed: ${err.message}` });
@@ -202,6 +178,15 @@ class AudioService {
     this.queueIndex = startIndex;
   }
 
+  private async handleTrackEnd() {
+    if (this.queueIndex < this.queue.length - 1) {
+      await this.skipNext();
+    } else {
+      this.updateState({ isPlaying: false, position: 0 });
+      this.stopPolling();
+    }
+  }
+
   async skipNext(): Promise<void> {
     if (this.queueIndex < this.queue.length - 1) {
       this.queueIndex++;
@@ -210,7 +195,6 @@ class AudioService {
   }
 
   async skipPrevious(): Promise<void> {
-    // If >3 seconds in, restart current track; otherwise go to previous
     if (this.state.position > 3000 && this.queueIndex >= 0) {
       await this.seekTo(0);
     } else if (this.queueIndex > 0) {
@@ -222,10 +206,10 @@ class AudioService {
   }
 
   async cleanup(): Promise<void> {
-    this.stopPositionUpdates();
-    if (this.sound) {
-      await this.sound.unloadAsync();
-      this.sound = null;
+    this.stopPolling();
+    if (this.player) {
+      this.player.remove();
+      this.player = null;
     }
     this.listeners.clear();
   }
@@ -240,3 +224,5 @@ class AudioService {
 }
 
 export const audioService = new AudioService();
+
+export { useAudioPlayer };

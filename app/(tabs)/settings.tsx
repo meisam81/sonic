@@ -50,7 +50,7 @@ export default function SettingsScreen() {
       <View style={styles.card}>
         <StatRow label="App" value="Sonic" />
         <StatRow label="Version" value="1.0.0" />
-        <StatRow label="Audio engine" value="expo-av" />
+        <StatRow label="Audio engine" value="expo-audio" />
       </View>
     </ScrollView>
   );
