@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { AudioTrack, LibraryFilter, SortField, SortDirection } from '../types/audio';
+import { AudioTrack, LibraryFilter } from '../types/audio';
 import { scanAllAudio } from '../services/scanner-service';
 import { enrichMetadata } from '../services/metadata-service';
 
@@ -31,14 +31,20 @@ export function useMediaScanner(): UseMediaScannerResult {
       const enriched = await enrichMetadata(raw);
       setTracks(enriched);
     } catch (err: any) {
-      setError(err.message || 'Scan failed');
+      console.warn('Scan failed:', err);
+      setError(err?.message || 'Scan failed');
     } finally {
       setIsScanning(false);
     }
   }, []);
 
   useEffect(() => {
-    scan();
+    // Defer the scan until after the first paint so the UI shows
+    // even if scanning throws or takes a while.
+    const handle = setTimeout(() => {
+      scan();
+    }, 100);
+    return () => clearTimeout(handle);
   }, [scan]);
 
   const setFilter = useCallback((partial: Partial<LibraryFilter>) => {
