@@ -31,12 +31,14 @@ jobs:
       - name: Expo prebuild
         run: npx expo prebuild --platform android --clean
 
-      - name: Build APK
+      - name: Build Debug APK (for diagnostics)
         working-directory: android
-        run: ./gradlew assembleRelease
+        env:
+          REACT_NATIVE_ARCHITECTURES: arm64-v8a,armeabi-v7a
+        run: ./gradlew assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: sonic-release-apk
-          path: android/app/build/outputs/apk/release/app-release.apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk

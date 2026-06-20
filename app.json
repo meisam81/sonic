@@ -23,13 +23,7 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "permissions": [
-        "READ_EXTERNAL_STORAGE",
-        "READ_MEDIA_AUDIO",
-        "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_MEDIA_PLAYBACK",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
-      ],
+      "permissions": [],
       "predictiveBackGestureEnabled": false,
       "package": "com.anonymous.sonic"
     },
@@ -37,20 +31,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-router",
-      [
-        "expo-audio",
-        {
-          "microphonePermission": false
-        }
-      ],
-      [
-        "expo-media-library",
-        {
-          "photosPermission": false,
-          "saveToLibraryPermission": false
-        }
-      ]
+      "expo-router"
     ]
   }
 }
