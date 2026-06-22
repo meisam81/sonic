@@ -1,78 +1,65 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
-import { logger } from '../src/utils/logger';
+import React, { useEffect, useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, Platform } from 'react-native';
 
 export default function DiagnosticScreen() {
-  const [logs, setLogs] = useState<string[]>(() => [...logger.getBuffer()]);
-  const [renderError, setRenderError] = useState<string | null>(null);
-  const mountTime = useRef(new Date().toISOString());
+  const [logs, setLogs] = useState<string[]>([
+    `[${new Date().toISOString()}] [INFO] DiagnosticScreen: constructor called`,
+  ]);
+  const [step, setStep] = useState('init');
 
   useEffect(() => {
-    logger.log(`DiagnosticScreen: useEffect ran at ${new Date().toISOString()}`);
-    logger.log(`DiagnosticScreen: Mount time was ${mountTime.current}`);
-    logger.log(`DiagnosticScreen: Platform = ${logger.platform()}`);
-    return logger.subscribe(() => {
-      setLogs([...logger.getBuffer()]);
+    const steps = [
+      'useEffect started',
+      `Platform: ${Platform.OS} ${Platform.Version}`,
+      'React rendered successfully',
+      'All core systems OK',
+    ];
+
+    steps.forEach((s, i) => {
+      setTimeout(() => {
+        const line = `[${new Date().toISOString()}] [INFO] ${s}`;
+        setLogs((prev) => [...prev, line]);
+        setStep(s);
+      }, i * 300);
     });
   }, []);
 
-  // Wrap render in try/catch so we can display any render-time error
-  try {
-    return (
-      <View style={styles.container}>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-          <Text style={styles.title}>🎵 Sonic</Text>
-          <Text style={styles.subtitle}>Diagnostic Build v0.1</Text>
+  return (
+    <View style={styles.container}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+        <Text style={styles.title}>🎵 Sonic</Text>
+        <Text style={styles.subtitle}>Diagnostic Build v0.2</Text>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Status</Text>
-            <Text style={styles.statusOk}>✅ App rendered successfully</Text>
-            <Text style={styles.statusLine}>Platform: {logger.platform()}</Text>
-            <Text style={styles.statusLine}>Mounted: {mountTime.current}</Text>
-            <Text style={styles.statusLine}>Log entries: {logs.length}</Text>
-          </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Status</Text>
+          <Text style={styles.statusOk}>✅ App rendered successfully</Text>
+          <Text style={styles.statusLine}>Platform: {Platform.OS} {Platform.Version}</Text>
+          <Text style={styles.statusLine}>Current step: {step}</Text>
+        </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Logs (newest first)</Text>
-            <View style={styles.logBox}>
-              {logs.length === 0 ? (
-                <Text style={styles.logEmpty}>No log entries yet…</Text>
-              ) : (
-                [...logs].reverse().map((line, i) => (
-                  <Text key={i} style={styles.logLine} numberOfLines={null}>
-                    {line}
-                  </Text>
-                ))
-              )}
-            </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Logs</Text>
+          <View style={styles.logBox}>
+            {logs.map((line, i) => (
+              <Text key={i} style={styles.logLine} numberOfLines={null}>
+                {line}
+              </Text>
+            ))}
           </View>
+        </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Next step</Text>
-            <Text style={styles.statusLine}>
-              If you see this screen, the basic build is working.
-            </Text>
-            <Text style={styles.statusLine}>
-              Logs also written to:{'\n'}
-              /sdcard/Android/data/com.anonymous.sonic/files/sonic.log
-            </Text>
-            <Text style={styles.statusLine}>
-              Screenshot this and send it back to me.
-            </Text>
-          </View>
-        </ScrollView>
-      </View>
-    );
-  } catch (e: any) {
-    const msg = `RENDER ERROR\n${e?.message}\n${e?.stack}`;
-    setRenderError(msg);
-    logger.fatal('Render error', { message: e?.message, stack: e?.stack });
-    return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>{msg}</Text>
-      </View>
-    );
-  }
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Info</Text>
+          <Text style={styles.statusLine}>
+            If you see this screen, the basic React Native + Expo Router build is working.
+          </Text>
+          <Text style={styles.statusLine}>
+            Next: add scanner/player features back one at a time.
+          </Text>
+        </View>
+      </ScrollView>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -131,21 +118,10 @@ const styles = StyleSheet.create({
     padding: 8,
     maxHeight: 400,
   },
-  logEmpty: {
-    fontSize: 11,
-    color: '#666',
-    fontStyle: 'italic',
-  },
   logLine: {
     fontSize: 10,
     color: '#AAA',
     fontFamily: 'monospace',
     marginBottom: 2,
-  },
-  errorText: {
-    fontSize: 12,
-    color: '#FF6B6B',
-    fontFamily: 'monospace',
-    padding: 12,
   },
 });
