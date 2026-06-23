@@ -23,13 +23,19 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platforms;android-35 build-tools;35.0.0 ndk;27.1.12297006 cmake;3.22.1'
+          packages: 'platforms;android-36 build-tools;36.0.0 ndk;27.1.12297006 cmake;3.22.1'
 
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
       - name: Expo prebuild
         run: npx expo prebuild --platform android --clean
+
+      - name: Pin Gradle to 8.x (Gradle 9 breaks RN)
+        run: |
+          sed -i 's|gradle-[0-9]*\.[0-9]*\.[0-9]*-bin.zip|gradle-8.13-bin.zip|' android/gradle/wrapper/gradle-wrapper.properties
+          echo "Pinned Gradle version:"
+          grep distributionUrl android/gradle/wrapper/gradle-wrapper.properties
 
       - name: Build Release APK
         working-directory: android
